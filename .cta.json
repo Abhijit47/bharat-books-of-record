@@ -1,0 +1,34 @@
+{
+  "projectName": "bharat-book-of-records",
+  "mode": "file-router",
+  "typescript": true,
+  "packageManager": "pnpm",
+  "includeExamples": true,
+  "tailwind": true,
+  "addOnOptions": {
+    "drizzle": {
+      "database": "sqlite"
+    }
+  },
+  "envVarValues": {},
+  "git": true,
+  "install": true,
+  "routerOnly": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": [
+    "eslint",
+    "netlify",
+    "tanstack-query",
+    "store",
+    "better-auth",
+    "table",
+    "shadcn",
+    "t3env",
+    "form",
+    "drizzle",
+    "db",
+    "compiler",
+    "ai"
+  ]
+}
