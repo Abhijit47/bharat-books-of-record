@@ -164,6 +164,9 @@ importers:
       react-hook-form:
         specifier: ^7.76.1
         version: 7.76.1(react@19.2.6)
+      react-infinite-scroll-component:
+        specifier: ^7.2.0
+        version: 7.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-resizable-panels:
         specifier: ^4.11.2
         version: 4.11.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -6434,6 +6437,13 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
+
+  react-infinite-scroll-component@7.2.0:
+    resolution: {integrity: sha512-oX0jgsm5wM2tT8sIxGUDZIBloXinfHmjWRduPk5AVTQ4KC7FW75wyp03VCUBDT8f9ousFK3vLiIcWoA5y+siOA==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=17'
+      react-dom: '>=17'
 
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
@@ -14184,6 +14194,11 @@ snapshots:
   react-hook-form@7.76.1(react@19.2.6):
     dependencies:
       react: 19.2.6
+
+  react-infinite-scroll-component@7.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+    dependencies:
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
 
   react-is@17.0.2: {}
 

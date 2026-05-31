@@ -1,4 +1,9 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import {
+  ClientOnly,
+  createFileRoute,
+  Link,
+  notFound,
+} from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 
 import {
@@ -12,6 +17,7 @@ import { Separator } from '#/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import type { MediaType, Post } from '#/lib/data'
 import { $fetch, mediaTypes } from '#/lib/data'
+import { cn } from '#/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,23 +29,35 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import InfiniteScroll from 'react-infinite-scroll-component'
+
+const PAGE_SIZE = 9
 
 const getJSONPosts = createServerFn({
   method: 'GET',
-}).handler(async () => {
-  const { data, error } = await $fetch<Post[]>('/')
-
-  if (error) {
-    throw notFound()
-  }
-
-  return { data }
 })
+  .inputValidator((data: { offset?: number; limit?: number }) => data)
+  .handler(async ({ data: input }) => {
+    const { data: allPosts, error } = await $fetch<Post[]>('/')
+
+    if (error) {
+      throw notFound()
+    }
+
+    const offset = input.offset ?? 0
+    const limit = input.limit ?? PAGE_SIZE
+
+    return {
+      data: allPosts.slice(offset, offset + limit),
+    }
+  })
 
 export const Route = createFileRoute('/demo/posts')({
   beforeLoad: async () => {
-    const posts = await getJSONPosts()
+    const posts = await getJSONPosts({
+      data: { offset: 0, limit: PAGE_SIZE },
+    })
 
     return { posts }
   },
@@ -49,8 +67,12 @@ export const Route = createFileRoute('/demo/posts')({
 function RouteComponent() {
   const [selectedTab, setSelectedTab] = useState<MediaType>(mediaTypes[0])
   const { posts } = Route.useRouteContext()
+  const [items, setItems] = useState<Post[]>(() => posts.data)
+  const [hasMore, setHasMore] = useState(posts.data.length === PAGE_SIZE)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const data = posts.data // Limit to 9 posts for demo purposes
+  const data = items
 
   const filteredByType = data.filter(
     (post) => post.attachments.data[0].media_type === selectedTab,
@@ -60,70 +82,135 @@ function RouteComponent() {
     return str.charAt(0).toUpperCase() + str.slice(1)
   }
 
+  const fetchMore = async () => {
+    setIsLoading(true)
+    const next = await getJSONPosts({
+      data: { offset: items.length, limit: PAGE_SIZE },
+    })
+    const randomDelay = Math.random() * 1000 + 500 // Random delay between 500ms and 1500ms
+    await new Promise((resolve) => setTimeout(resolve, randomDelay))
+    setIsLoading(false)
+
+    if (next.data.length === 0) {
+      setHasMore(false)
+      return
+    }
+
+    setItems((prev) => [...prev, ...next.data])
+    setHasMore(next.data.length === PAGE_SIZE)
+  }
+
+  const refreshList = async () => {
+    setIsLoading(true)
+    const refreshed = await getJSONPosts({
+      data: { offset: 0, limit: items.length },
+    })
+    const randomDelay = Math.random() * 1000 + 500 // Random delay between 500ms and 1500ms
+    await new Promise((resolve) => setTimeout(resolve, randomDelay))
+    setIsLoading(false)
+
+    setItems(refreshed.data)
+    setHasMore(refreshed.data.length === items.length)
+  }
+
   return (
     <main className={'max-w-(--breakpoint-xl) mx-auto px-4 py-24'}>
       <h2 className="mt-8 mb-4 text-2xl font-bold">Posts from DB:</h2>
 
-      <Tabs
-        defaultValue={selectedTab}
-        onValueChange={(value) => setSelectedTab(value as MediaType)}
-      >
-        <TabsList variant="line">
+      <ClientOnly fallback={<p>Loading...</p>}>
+        <Tabs
+          defaultValue={selectedTab}
+          onValueChange={(value) => setSelectedTab(value as MediaType)}
+        >
+          <TabsList variant="line">
+            {mediaTypes.map((type) => (
+              <TabsTrigger key={type} value={type}>
+                {capitalizeChar(type)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {mediaTypes.map((type) => (
-            <TabsTrigger key={type} value={type}>
-              {capitalizeChar(type)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {mediaTypes.map((type) => (
-          <TabsContent key={type} value={type} className={'w-full'}>
-            <Card>
-              <CardHeader>
-                <CardTitle>{capitalizeChar(type)} Posts</CardTitle>
-                <CardDescription>
-                  You have {filteredByType.length} active events.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredByType.length === 0 ? (
-                    <>No data to show</>
-                  ) : (
-                    <>
-                      {filteredByType.map((post, idx) => {
-                        // const placeholder = blurhashToCssGradientString(blurhash(post.attachmentsImageSrc!))
-                        const firstAttachment = post.attachments.data[0]
-                        return (
-                          <article
-                            key={crypto.randomUUID()}
-                            className="island-shell feature-card rise-in rounded-2xl p-5 space-y-6"
-                            style={{ animationDelay: `${idx * 90 + 80}ms` }}
-                          >
-                            <Link
-                              to={post.permalink_url}
-                              className="aspect-square block"
-                              target="_blank"
-                              rel="noopener noreferrer"
+            <TabsContent key={type} value={type} className={'w-full'}>
+              <Card className={'relative'}>
+                <CardHeader>
+                  <CardTitle>{capitalizeChar(type)} Posts</CardTitle>
+                  <CardDescription>
+                    You have {filteredByType.length} active events.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  <div
+                    id="posts-scrollable"
+                    ref={containerRef}
+                    className={'max-h-96 h-full w-full overflow-y-auto'}
+                  >
+                    <InfiniteScroll
+                      dataLength={items.length}
+                      next={fetchMore}
+                      hasMore={hasMore}
+                      loader={
+                        <div
+                          className={cn(
+                            isLoading
+                              ? 'absolute inset-0 h-full w-full flex items-center justify-center backdrop-blur-sm'
+                              : '',
+                          )}
+                        >
+                          <p>Loading...</p>
+                        </div>
+                      }
+                      // scrollableTarget={containerRef.current}
+                      pullDownToRefresh
+                      pullDownToRefreshThreshold={50}
+                      refreshFunction={refreshList}
+                      scrollableTarget="posts-scrollable"
+                      pullDownToRefreshContent={
+                        <h3 style={{ textAlign: 'center' }}>
+                          &#8595; Pull down to refresh
+                        </h3>
+                      }
+                      releaseToRefreshContent={
+                        <h3 style={{ textAlign: 'center' }}>
+                          &#8593; Release to refresh
+                        </h3>
+                      }
+                    >
+                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {filteredByType.map((post, idx) => {
+                          // const placeholder = blurhashToCssGradientString(blurhash(post.attachmentsImageSrc!))
+                          const firstAttachment = post.attachments.data[0]
+                          return (
+                            <article
+                              key={post.id}
+                              className="island-shell feature-card rise-in rounded-2xl p-5 space-y-6"
+                              style={{ animationDelay: `${idx * 90 + 80}ms` }}
                             >
-                              <MediaComponent attachment={firstAttachment} />
-                            </Link>
+                              <Link
+                                to={post.permalink_url}
+                                className="aspect-square block"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <MediaComponent attachment={firstAttachment} />
+                              </Link>
 
-                            <p className="text-sm text-(--sea-ink-soft) line-clamp-6">
-                              {post.message}
-                            </p>
+                              <p className="text-sm text-(--sea-ink-soft) line-clamp-6">
+                                {post.message}
+                              </p>
 
-                            <PostDialog post={post} />
-                          </article>
-                        )
-                      })}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+                              <PostDialog post={post} />
+                            </article>
+                          )
+                        })}
+                      </div>
+                    </InfiniteScroll>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </ClientOnly>
     </main>
   )
 }
